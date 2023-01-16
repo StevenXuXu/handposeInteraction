@@ -1,0 +1,28 @@
+{
+ "seed": 126673,
+ "model_exp": "./model_exp/2023-01-02_11-49-09/",
+ "model": "ReXNetV1",
+ "num_classes": 42,
+ "GPUS": "0",
+ "train_path": "./handpose_datasets_v1/",
+ "pretrained": true,
+ "fintune_model": "None",
+ "loss_define": "wing_loss",
+ "init_lr": 0.001,
+ "lr_decay": 0.1,
+ "weight_decay": 1e-06,
+ "momentum": 0.9,
+ "batch_size": 16,
+ "dropout": 0.5,
+ "epochs": 3000,
+ "num_workers": 10,
+ "img_size": [
+  256,
+  256
+ ],
+ "flag_agu": true,
+ "fix_res": false,
+ "clear_model_exp": false,
+ "log_flag": false,
+ "time": "2023-01-02 11:49:09"
+}
