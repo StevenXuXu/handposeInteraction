@@ -17,9 +17,9 @@ import torch
 import torchvision
 import yaml
 
-from Abyss.hand_detection.utils.google_utils import gsutil_getsize
-from Abyss.hand_detection.utils.metrics import fitness
-from Abyss.hand_detection.utils.torch_utils import init_torch_seeds
+from hand_detection.utils.google_utils import gsutil_getsize
+from hand_detection.utils.metrics import fitness
+from hand_detection.utils.torch_utils import init_torch_seeds
 
 # Settings
 torch.set_printoptions(linewidth=320, precision=5, profile='long')

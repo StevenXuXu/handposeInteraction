@@ -18,8 +18,8 @@ import yaml
 from PIL import Image, ImageDraw, ImageFont
 from scipy.signal import butter, filtfilt
 
-from Abyss.hand_detection.utils.general import xywh2xyxy, xyxy2xywh
-from Abyss.hand_detection.utils.metrics import fitness
+from hand_detection.utils.general import xywh2xyxy, xyxy2xywh
+from hand_detection.utils.metrics import fitness
 
 # Settings
 matplotlib.rc('font', **{'size': 11})
