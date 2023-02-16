@@ -1,7 +1,7 @@
 # -- coding: utf-8 --
 import sys
 
-# from interaction.interaction import Interactor
+from interaction.interaction import Interactor
 from hand_key.models.resnet import resnet50
 from hand_track.tracker import Tracker
 from hand_detection.utils.datasets import LoadImages, LoadStreams
@@ -67,8 +67,8 @@ def detect(opt):
     # 初始化追踪状态器--------------------------------------------------------------------------
     tracker = Tracker(opt.pose_cfg, pose_thres=pose_thres)
 
-    # todo: 初始化交互模块--------------------------------------------------------------------------
-    # interactor = Interactor()
+    # 初始化交互模块--------------------------------------------------------------------------
+    interactor = Interactor()
 
     # Dataloader--------------------------------------------------------------------------
     # 使用摄像头
@@ -105,7 +105,7 @@ def detect(opt):
         t1 = time_synchronized()
         pred = model_yolo5(img, augment=opt.augment)[0]  # 得到预测结果列表
 
-        # 非极大值抑制 最大检测数2 最小框边长：握拳的边长*0.9
+        # 1.非极大值抑制 最大检测数2 最小框边长：握拳的边长*0.9
         pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=[0])
 
         # 从pred列表中取出数据，如果是视频就只有一次循环，仅包含tensor[2,6]  2只手，6个信息
@@ -125,10 +125,11 @@ def detect(opt):
                 # 手检测计数
                 s += '%g %ss ' % (len(det_box), names[0])
 
-                # 对每只手进行关键点预测，并返回原始坐标
+                # 2.对每只手进行关键点预测，并返回原始坐标
                 keypoint_list = []
                 for one_hand_box in det_box.data.cpu().numpy():
                     # resnet50图像预处理 -----------------------------------------------------------------
+                    # 将检测出的手部图像切割出来，进行关键点检测
                     cut_img = im0[int(one_hand_box[1]):int(one_hand_box[3]),
                               int(one_hand_box[0]):int(one_hand_box[2])]  # 先切y轴，再切x轴
 
@@ -153,7 +154,7 @@ def detect(opt):
                         hand_.append([x, y])
                     keypoint_list.append(hand_)
 
-                # 处理结果：追踪&打印----------------------------------------------------------------------------
+                # 3.处理结果：追踪&打印----------------------------------------------------------------------------
                 tracker.update(det_box, keypoint_list)
 
             else:
@@ -161,17 +162,18 @@ def detect(opt):
 
             tracker.plot(im0)
 
-            # todo: 判断进入交互功能
-            # interactor.interact(im0, tracker.get_order())
+            # print('tracker: ', tracker.get_order())
+            # 传入食指坐标以及手势编号判断进入交互功能
+            interactor.interact(im0, tracker.get_order())
 
             # Print time (yolov5 + NMS + keypoint + track + draw + interact + ...)
             t2 = time_synchronized()
-            print('%s (%.3fs)' % (s, t2 - t1))  # 时间
+            # print('%s (%.3fs)' % (s, t2 - t1))  # 时间
 
             # Stream results  是否在ui界面中展示
             # if view is None:
             cv2.imshow(p, im0)
-            if cv2.waitKey(1) == ord('q'):  # q to quit
+            if cv2.waitKey(1) == ord('q'):  # 按q退出
                 raise StopIteration
 
             # Save results (image with detections)

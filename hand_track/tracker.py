@@ -19,7 +19,7 @@ class Tracker:
     3. IOU跟踪
     """
 
-    def __init__(self, pose_cfg, pose_thres=0.2, no_data_limit=5):
+    def __init__(self, pose_cfg, pose_thres=0.1, no_data_limit=5):
         # 设置
         with open(pose_cfg, 'r') as f:
             self.pose_list = json.load(f)  # 手势规则 list[dict{name:int,angle:list[float*5]}*n个手势]
@@ -37,6 +37,7 @@ class Tracker:
 
         # 多线程
         self.piano_data = []
+        # todo 实现钢琴应用
         # _thread.start_new_thread(play_piano, (self.piano_data,))
         self.circle_list = []
 
@@ -136,13 +137,16 @@ class Tracker:
         self.pose_list: 配置文件
         读取设置文件，匹配手势
         """
-        angles = pose_to_angles(key_point)  # [    0.99953    -0.91983    -0.95382    -0.98989    -0.99999]
+        angles = pose_to_angles(key_point)
+        res = None
         for pose in self.pose_list:
             # 若计算出的角度数据在阈值范围内，则识别成功
             max = (np.array(pose['angle']) + self.pose_thres >= angles).sum()
             min = (np.array(pose['angle']) - self.pose_thres <= angles).sum()
-            if max == min == 6:
-                return int(pose['name'])
+            if max == min == 8:
+                res = pose['name']
+        if res is not None:
+            return int(res)
         return 0
 
 

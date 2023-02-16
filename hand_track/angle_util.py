@@ -19,18 +19,27 @@ def vectors_to_angle(p1, p2, p3, p4):
 def pose_to_angles(key_point):
     """
 
-    :param key_point: 21个关键点坐标
-    :type key_point:
-    :return: 6个cos值
-    :rtype:
+    输入21个关键点坐标
+    返回相应直线之间的cos值
+
     """
+    # a1 = vectors_to_angle(key_point[0], key_point[1], key_point[3], key_point[4])
+    # a2 = vectors_to_angle(key_point[0], key_point[5], key_point[6], key_point[8])
+    # a3 = vectors_to_angle(key_point[0], key_point[9], key_point[10], key_point[12])
+    # a4 = vectors_to_angle(key_point[0], key_point[13], key_point[14], key_point[16])
+    # a5 = vectors_to_angle(key_point[0], key_point[17], key_point[18], key_point[20])
+    # a6 = vectors_to_angle(key_point[0], key_point[4], key_point[0], key_point[8])  # 大拇指与食指
+    # return np.array([a1, a2, a3, a4, a5, a6], dtype=np.float32)
     a1 = vectors_to_angle(key_point[0], key_point[1], key_point[3], key_point[4])
     a2 = vectors_to_angle(key_point[0], key_point[5], key_point[6], key_point[8])
     a3 = vectors_to_angle(key_point[0], key_point[9], key_point[10], key_point[12])
     a4 = vectors_to_angle(key_point[0], key_point[13], key_point[14], key_point[16])
     a5 = vectors_to_angle(key_point[0], key_point[17], key_point[18], key_point[20])
-    a6 = vectors_to_angle(key_point[0], key_point[4], key_point[0], key_point[8])  # 大拇指与食指
-    return np.array([a1, a2, a3, a4, a5, a6], dtype=np.float32)
+    a6 = vectors_to_angle(key_point[0], key_point[4], key_point[0], key_point[8])
+    a7 = vectors_to_angle(key_point[1], key_point[2], key_point[2], key_point[3])
+    a8 = vectors_to_angle(key_point[5], key_point[6], key_point[6], key_point[7])
+    # todo 增加手势3和5的区分度
+    return np.array([a1, a2, a3, a4, a5, a6, a7, a8], dtype=np.float32)
 
 
 def get_dis(p1, p2):
