@@ -164,7 +164,7 @@ def detect(opt):
 
             # print('tracker: ', tracker.get_order())
             # 传入食指坐标以及手势编号判断进入交互功能
-            interactor.interact(im0, tracker.get_order())
+            im0 = interactor.interact(im0, tracker.get_order())
 
             # Print time (yolov5 + NMS + keypoint + track + draw + interact + ...)
             t2 = time_synchronized()

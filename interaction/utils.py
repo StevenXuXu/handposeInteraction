@@ -23,3 +23,8 @@ def compute_direction(x1, y1, x2, y2):
         return 8
     else:  # 完全没有移动
         return 0
+
+
+# 判断是否在圆内
+def if_contain(cx, cy, r, x, y):
+    return (cx - x) ** 2 + (cy - y) ** 2 <= r ** 2

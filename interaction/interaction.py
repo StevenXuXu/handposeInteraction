@@ -6,7 +6,7 @@ import numpy as np
 
 from interaction.audio_thread import play_sounds
 from interaction.detect.detect import detect
-from interaction.utils import compute_distance, compute_direction
+from interaction.utils import compute_distance, compute_direction, if_contain
 
 # 方向列表:上8下2左4右6
 action_list = {
@@ -46,10 +46,15 @@ class Interactor:
         self.no_active = np.array([0, 0])  # 忽略帧数累计
         self.pose_end = np.array([0, 0])  # 标记语音输出
         self.direction_intent = np.array([0, 0])  # 移动方向预测
+        self.detected = np.array([0, 0])  # 框选图片是否检测过
+        self.menu = 0  # 是否在菜单模式
+        self.menu_mouse = [320, 400]  # 菜单鼠标坐标
+        self.delta_x = 0  # 坐标的x改变量
+        self.delta_y = 0  # 坐标的y改变量
 
         # 音效模块
         self.share_act = []
-        _thread.start_new_thread(play_sounds, (self.share_act,))  # 启动声音提示线程
+        # _thread.start_new_thread(play_sounds, (self.share_act,))  # 启动声音提示线程
 
         # 应用模块
         self.app_dict = {
@@ -59,7 +64,7 @@ class Interactor:
             "right_bottom": None,
             "result": None,
         }  # 共享信息
-        self.app_start = False
+        self.app_start = 0
         # 启动应用模块线程，传入app_dict，线程共享该变量
         _thread.start_new_thread(detect, (self.app_dict,))  # 启动图像识别线程
 
@@ -68,9 +73,45 @@ class Interactor:
         order[[x,y,p],[x,y,p]]，已经以id为序列存储
         x,y,p分别为x坐标，y坐标，手势编号
         """
+        width = im0.shape[1]
+        height = im0.shape[0]
         # print('interact launched')
         for i, o in enumerate(order):
-            # print('pose ', o[2])
+            # todo 呼出菜单
+            # 手势4呼出菜单(x)
+            # 1.当手势4出现，即进入菜单模式，维持手势即可维持菜单
+            # 2.点击“退出菜单”按钮或者手势出现改变且改变时间超过阈值即可退出菜单
+            # 3.菜单以若干圆圈将食指尖作为圆心作扇型展开
+            # if o[2] == 4:
+            #     if self.pose_will[i] != o[2]:
+            #         self.pose_will[i] = o[2]
+            #         continue
+            #     self.pose[i] == o[2]
+            #
+            # 下拉呼出菜单(o)
+            # 1.下拉手势出现后进入菜单
+            # 2.菜单中有若干圆圈按钮（如何确定位置？如何判断点击到？）
+            # 3.在不同应用下菜单不同
+
+            if self.menu:
+                # 若非相应手势则清空前坐标信息
+                if o[2] != 1 and o[2] != 2 and o[2] != 3:
+                    self.track[i].clear()
+                else:
+                    # 更新横纵坐标的位置改变量
+                    if len(self.track[i]):
+                        self.delta_x = o[0] - self.track[i][len(self.track[i]) - 1][0]
+                        self.delta_y = o[1] - self.track[i][len(self.track[i]) - 1][1]
+                    self.track[i].append(o.tolist())
+                    # 更新菜单光标的坐标
+                    self.menu_mouse[0] += self.delta_x * 3
+                    self.menu_mouse[1] += self.delta_y * 3
+                    self.menu_mouse[0] = min(self.menu_mouse[0], width)
+                    self.menu_mouse[0] = max(self.menu_mouse[0], 0)
+                    self.menu_mouse[1] = min(self.menu_mouse[1], height)
+                    self.menu_mouse[1] = max(self.menu_mouse[1], 0)
+                continue
+
             # 终止手势：手势5、8、10---------------------------------------
             if o[2] == 10 or o[2] == 8 or o[2] == 5:  # 清空内存并发出指令
                 self.action(i, im0)
@@ -80,7 +121,6 @@ class Interactor:
             #     self.__clear_cache(i)
 
             # 无手势或不是响应手势或无检测目标或手势改变---------------------------------------
-
             elif o[2] != 1 and o[2] != 2 and o[2] != 3 and o[2] != 11 or o[2] != self.pose_will[i] or o[0] == 0:
                 # print(f'pose will {i}: {self.pose_will[i]}, pose{i}: {o[2]}')
                 if self.no_active[i] == self.no_act_thres:
@@ -103,6 +143,8 @@ class Interactor:
                             self.share_act.append("click")  # 点击
                         elif self.stable_time[i] == self.stable_thres - 1:
                             self.share_act.append("press")  # 长按
+                            if self.app_start == 1:
+                                self.app_dict["mouse"] = [o[0], o[1]]
                     # 移动过
                     elif len(self.track[i]) != 1:
                         self.share_act.append("drag")  # 拖动
@@ -139,15 +181,17 @@ class Interactor:
                     self.stable_time[i] = 0  # 当移动时不对停滞记录进行更新(保持充能圈)
 
                 # 应用获取点击位置信息done
-                if self.app_start and o[2] == 3:  # 只在应用启动，且手势为3时添加手指响应位置信息
+                if self.app_start == 1 and o[2] == 3:  # 只在应用1启动，且手势为3时添加手指响应位置信息
                     self.app_dict["mouse"] = [o[0], o[1]]
 
             # 响应手势11
-            elif o[2] == 11:
-                print('capture! pose 11')
+            elif o[2] == 11 and self.app_start == 1:
+                # print('capture! pose 11')
                 self.no_active[i] = 0
                 self.pose[i] = o[2]  # 更新状态
-                self.action(i, im0)
+                if not self.detected[i]:
+                    self.action(i, im0)
+                    self.detected[i] = True
 
             else:
                 print("wrong in interaction")
@@ -188,7 +232,7 @@ class Interactor:
                 cv2.putText(im0, detail, (0, 400), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 255, 0), 1)
 
         # 画框及显示框内的图片
-        if self.app_dict["left_top"] is not None and self.app_dict["right_bottom"] is not None:
+        if self.app_dict["left_top"] is not None and self.app_dict["right_bottom"] is not None and self.app_start == 1:
             # 画框
             cv2.rectangle(im0, (self.app_dict["left_top"][0], self.app_dict["left_top"][1]),
                           (self.app_dict["right_bottom"][0], self.app_dict["right_bottom"][1]),
@@ -208,32 +252,126 @@ class Interactor:
                 img_cut = cv2.resize(img_cut, (w, h))
                 im0[(h_ori-h):h_ori, (w_ori-w):w_ori] = img_cut
 
+        # 若在菜单模式下，绘制相关按钮以及光标，并判断是否命中按钮
+        if self.menu:
+            # cv2.circle(img, center, radius, color[, thickness[, lineType[, shift]]])
+            # cv2.rectangle(img, pt1, pt2, color, thickness, lineType, shift )
+            # color: BGR
+            # cv2.rectangle(im0, (0, 0), (width, height), (0, 100, 0), -1)
+
+            # 绘制半透明背景
+            zeros = np.zeros(im0.shape, dtype=np.uint8)
+            zeros_mask = cv2.rectangle(zeros, (0, 0), (width, height),
+                                       color=(255, 255, 255), thickness=-1)  # thickness=-1 表示矩形框内颜色填充
+            im0 = cv2.addWeighted(im0, 1, zeros_mask, 0.6, 0)
+
+            if self.app_start == 0:  # 没有开启应用
+                c1_x, c1_y = int(width / 3), int(height / 5) * 2  # 关闭菜单
+                c2_x, c2_y = int(width / 3) * 2, int(height / 5) * 2  # 启动应用1
+                c_radius = 50
+
+                cv2.circle(im0, (c1_x, c1_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'back', (c1_x - 30, c1_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+                cv2.circle(im0, (c2_x, c2_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'detect', (c2_x - 30, c2_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+
+                cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (153, 0, 204), -1)
+                cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (102, 0, 255), 2)
+
+                # 关闭菜单
+                if if_contain(c1_x, c1_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                    self.close_menu()
+
+                # 打开应用1
+                if if_contain(c2_x, c2_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                    self.app_start = 1
+                    self.close_menu()
+
+            elif self.app_start == 1:  # 打开了应用1
+                c1_x, c1_y = int(width / 4), int(height / 5) * 2  # 关闭菜单
+                c2_x, c2_y = int(width / 4) * 2, int(height / 5) * 2  # 关闭应用1
+                c3_x, c3_y = int(width / 4) * 3, int(height / 5) * 2  # 新建任务
+                c_radius = 50
+
+                cv2.circle(im0, (c1_x, c1_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'back', (c1_x - 30, c1_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+                cv2.circle(im0, (c2_x, c2_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'close', (c2_x - 30, c2_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+                cv2.circle(im0, (c3_x, c3_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'reset', (c3_x - 30, c3_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+
+                cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (153, 0, 204), -1)
+                cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (102, 0, 255), 2)
+
+                # 关闭菜单
+                if if_contain(c1_x, c1_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                    self.close_menu()
+
+                # 关闭应用1
+                elif if_contain(c2_x, c2_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                    self.app_start = 0
+                    self.app_dict["result"] = None
+                    self.app_dict["left_top"] = self.app_dict["right_bottom"] = None
+                    self.close_menu()
+
+                # 清空以新建新的分类任务
+                elif if_contain(c3_x, c3_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                    self.app_dict["result"] = None
+                    self.app_dict["left_top"] = self.app_dict["right_bottom"] = None
+                    self.close_menu()
+
+        return im0
+
+
     def __clear_cache(self, i):
-        self.track[i].clear()  # 清除轨迹记录
-        self.direction_list[i] = ""  # 清除方向记录
+        self.track[i].clear()
+        self.direction_list[i] = ""
         self.no_active[i] = 0
         self.pose[i] = 0
         self.pose_will[i] = 0
         self.stable_time[i] = 0
         self.pose_end[i] = 0
+        self.detected[i] = 0
+        # self.menu = 0
+        # self.menu_mouse = [320, 480]
+        self.delta_x = 0
+        self.delta_y = 0
 
     def action(self, i, img=None):
         if (self.pose[i] == 2 or self.pose[i] == 3) and self.direction_list[i] in action_list.keys():  # 需要登记指令
             self.share_act.append(action_list[self.direction_list[i]])
-
-            if self.direction_list[i] == "64":  # 启动应用
-                self.app_start = True
+            # if self.direction_list[i] == "64":  # 启动应用
+            #     self.app_start = True
                 # print("\n\n启动应用\n\n")
-            elif self.direction_list[i] == "8":  # 关闭应用
-                self.app_start = False
-                # print("\n\n关闭应用\n\n")
-            elif self.direction_list[i] == "46":  # 清空以新建新的分类任务
-                self.app_dict["result"] = None
-                self.app_dict["left_top"] = self.app_dict["right_bottom"] = None
-                # print("\n\n新建任务\n\n")
+            # if self.direction_list[i] == "8":  # 关闭应用
+            #     self.app_start = False
+            #     # print("\n\n关闭应用\n\n")
+            # elif self.direction_list[i] == "46":  # 清空以新建新的分类任务
+            #     self.app_dict["result"] = None
+            #     self.app_dict["left_top"] = self.app_dict["right_bottom"] = None
+            #     # print("\n\n新建任务\n\n")
+            if self.direction_list[i] == "2":  # 打开菜单
+                self.menu_mouse[0] = int(img.shape[1] / 2)
+                self.menu_mouse[1] = int(img.shape[0] / 5) * 4
+                self.open_menu()
+                print('-----菜单打开-----')
 
-        if self.pose[i] == 11 and self.app_start and self.app_dict["result"] is None:  # 启动分类
+        if self.pose[i] == 11 and self.app_start == 1 and self.app_dict["result"] is None:  # 启动分类
             self.app_dict["img"] = img
             print("\n\n---启动分类---\n\n")
 
         # print("direction_list %d: " % i, self.direction_list[i])
+
+    # 打开菜单
+    def open_menu(self):
+        self.track[0].clear()
+        self.track[1].clear()
+        self.menu = True
+
+    # 关闭菜单
+    def close_menu(self):
+        self.track[0].clear()
+        self.track[1].clear()
+        self.menu = 0
+        self.delta_x = 0
+        self.delta_y = 0
