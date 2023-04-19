@@ -178,7 +178,7 @@ def detect(opt):
 
             # Save results (image with detections)
             if save:
-                if dataset.mode == 'images':
+                if dataset.mode == 'image':
                     print('saving img!')
                     cv2.imwrite(save_path, im0)
                 else:
@@ -204,15 +204,15 @@ def detect(opt):
 def parse_argument():
     parser = argparse.ArgumentParser()
     # file/folder, 0-webcam。不支持图片格式              inference/input/test_video2.mp4
-    # parser.add_argument('--source', type=str, default='inference/input/test.mp4', help='source')  # 输入视频文件
-    parser.add_argument('--source', type=str, default='0', help='source')  # 输入摄像头画面。0：笔记本自带摄像头；1：usb摄像头
+    # parser.add_argument('--source', type=str, default='inference/input/Snipaste_2023-02-27_15-36-08.png', help='source')  # 输入视频文件
+    parser.add_argument('--source', type=str, default='1', help='source')  # 输入摄像头画面。0：笔记本自带摄像头；1：usb摄像头
     # 输出文件夹
     parser.add_argument('--output', type=str, default='inference/output', help='output folder')
     # 输出视频格式
     parser.add_argument('--fourcc', type=str, default='mp4v', help='output video codec (verify ffmpeg support)')
     # 是否展示结果
     parser.add_argument('--view', default=True, help='display results')
-    # 是否保存视频
+    # 是否保存
     parser.add_argument("--save", type=str, default=False, help='save results')
     # 是否使用显卡+半精度
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')  # 默认值可改为cpu --by Steven

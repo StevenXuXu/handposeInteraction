@@ -6,7 +6,7 @@ import numpy as np
 
 from interaction.audio_thread import play_sounds
 from interaction.detect.detect import detect
-from interaction.utils import compute_distance, compute_direction, if_contain
+from interaction.utils import compute_distance, compute_direction, if_contain_circle, if_contain_button
 
 # 方向列表:上8下2左4右6
 action_list = {
@@ -20,6 +20,17 @@ action_list = {
     "46": "clear",  # 刷新
 }
 
+# 键盘关键字
+keys = [['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'del'],
+        ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'blk', 'ent'],
+        ['Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '?', '!']]
+
+# 定义按钮
+class Button:
+    def __init__(self, pos, text, size):
+        self.pos = pos
+        self.text = text
+        self.size = size
 
 class Interactor:
     """
@@ -40,6 +51,7 @@ class Interactor:
         # 缓存
         self.pose = np.array([0, 0])  # 登记的响应手势(当前版本下，仅支持单一手势的运动组合，当变换手势时将取消动作)
         self.pose_will = np.array([0, 0])  # 即将转变的手势，作为缓存
+        self.pose_last = np.array([0, 0])  # 记录上一帧的手势
         self.direction_list = ["", ""]  # 方向列表，添加上8下2左4右6
         self.track = ([], [])  # 响应追踪路径 -> 画图
         self.stable_time = np.array([0, 0])  # 累计停滞时间
@@ -51,8 +63,13 @@ class Interactor:
         self.menu_mouse = [320, 400]  # 菜单鼠标坐标
         self.delta_x = 0  # 坐标的x改变量
         self.delta_y = 0  # 坐标的y改变量
+        self.buttonList = []  # 键盘按键表
+        self.buttonUpdate = True  # 键盘按键是否需要更新
+        self.kb_text = ""  # 输入的文本
+        self.kb_pos = np.array([0, 0])  # 键盘初始位置
+        self.last_pos = np.array([[-1, -1, -1], [-1, -1, -1]])  # 记录上一帧的食指位置
 
-        # 音效模块
+        # todo 音效模块
         self.share_act = []
         # _thread.start_new_thread(play_sounds, (self.share_act,))  # 启动声音提示线程
 
@@ -77,7 +94,7 @@ class Interactor:
         height = im0.shape[0]
         # print('interact launched')
         for i, o in enumerate(order):
-            # todo 呼出菜单
+            # todo 呼出菜单 done
             # 手势4呼出菜单(x)
             # 1.当手势4出现，即进入菜单模式，维持手势即可维持菜单
             # 2.点击“退出菜单”按钮或者手势出现改变且改变时间超过阈值即可退出菜单
@@ -93,9 +110,11 @@ class Interactor:
             # 2.菜单中有若干圆圈按钮（如何确定位置？如何判断点击到？）
             # 3.在不同应用下菜单不同
 
+            # self.pose = o[2]
             if self.menu:
                 # 若非相应手势则清空前坐标信息
-                if o[2] != 1 and o[2] != 2 and o[2] != 3:
+                self.pose[i] = o[2]
+                if o[2] not in [1, 2, 3]:
                     self.track[i].clear()
                 else:
                     # 更新横纵坐标的位置改变量
@@ -104,8 +123,8 @@ class Interactor:
                         self.delta_y = o[1] - self.track[i][len(self.track[i]) - 1][1]
                     self.track[i].append(o.tolist())
                     # 更新菜单光标的坐标
-                    self.menu_mouse[0] += self.delta_x * 3
-                    self.menu_mouse[1] += self.delta_y * 3
+                    self.menu_mouse[0] += self.delta_x * 2
+                    self.menu_mouse[1] += self.delta_y * 2
                     self.menu_mouse[0] = min(self.menu_mouse[0], width)
                     self.menu_mouse[0] = max(self.menu_mouse[0], 0)
                     self.menu_mouse[1] = min(self.menu_mouse[1], height)
@@ -121,7 +140,7 @@ class Interactor:
             #     self.__clear_cache(i)
 
             # 无手势或不是响应手势或无检测目标或手势改变---------------------------------------
-            elif o[2] != 1 and o[2] != 2 and o[2] != 3 and o[2] != 11 or o[2] != self.pose_will[i] or o[0] == 0:
+            elif o[2] not in [1, 2, 3, 11] or o[2] != self.pose_will[i] or o[0] == 0:
                 # print(f'pose will {i}: {self.pose_will[i]}, pose{i}: {o[2]}')
                 if self.no_active[i] == self.no_act_thres:
                     self.__clear_cache(i)
@@ -154,7 +173,8 @@ class Interactor:
                     self.track[i].append(o.tolist())
 
                 # 移动距离小于移动阈值，判定为停滞，不更新方向，不更新轨迹
-                if compute_distance(o[0], o[1], self.track[i][len(self.track[i]) - 1][0], self.track[i][len(self.track[i]) - 1][1]) < self.stop_thres ** 2:
+                if compute_distance(o[0], o[1], self.track[i][len(self.track[i]) - 1][0],
+                                    self.track[i][len(self.track[i]) - 1][1]) < self.stop_thres ** 2:
                     if self.stable_time[i] < self.stable_thres and not len(self.direction_list[i]):
                         self.stable_time[i] += 1
 
@@ -184,7 +204,7 @@ class Interactor:
                 if self.app_start == 1 and o[2] == 3:  # 只在应用1启动，且手势为3时添加手指响应位置信息
                     self.app_dict["mouse"] = [o[0], o[1]]
 
-            # 响应手势11
+            # 响应手势11,开始目标检测
             elif o[2] == 11 and self.app_start == 1:
                 # print('capture! pose 11')
                 self.no_active[i] = 0
@@ -231,7 +251,7 @@ class Interactor:
                 # 图片，添加的文字，左上角坐标(整数)，字体，字体大小，颜色，字体粗细
                 cv2.putText(im0, detail, (0, 400), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 255, 0), 1)
 
-        # 画框及显示框内的图片
+        # 在应用1下，画框及显示框内的图片
         if self.app_dict["left_top"] is not None and self.app_dict["right_bottom"] is not None and self.app_start == 1:
             # 画框
             cv2.rectangle(im0, (self.app_dict["left_top"][0], self.app_dict["left_top"][1]),
@@ -243,14 +263,94 @@ class Interactor:
                             cv2.FONT_HERSHEY_PLAIN, 2, [255, 0, 255], 2)
             # 显示框内图片
             img_cut = im0[int(self.app_dict["left_top"][1]):int(self.app_dict["right_bottom"][1]),
-                  int(self.app_dict["left_top"][0]):int(self.app_dict["right_bottom"][0])]  # 先切y轴，再切x轴
+                      int(self.app_dict["left_top"][0]):int(self.app_dict["right_bottom"][0])]  # 先切y轴，再切x轴
             # cv2.imshow('img_cut', img_cut)
             h_ori, w_ori = im0.shape[:2]  # 高，宽，图像通道数量
             h, w = 128, 128  # 调整框内图片大小
             # 若方框大小符合要求，则显示在右下角
-            if int(self.app_dict["right_bottom"][1]) - int(self.app_dict["left_top"][1]) > 1 and int(self.app_dict["right_bottom"][0]) - int(self.app_dict["left_top"][0]) > 1:
+            if int(self.app_dict["right_bottom"][1]) - int(self.app_dict["left_top"][1]) > 1 and int(
+                    self.app_dict["right_bottom"][0]) - int(self.app_dict["left_top"][0]) > 1:
                 img_cut = cv2.resize(img_cut, (w, h))
-                im0[(h_ori-h):h_ori, (w_ori-w):w_ori] = img_cut
+                im0[(h_ori - h):h_ori, (w_ori - w):w_ori] = img_cut
+
+        # 在应用2下
+        if self.app_start == 2:
+            # todo 虚拟键盘
+            # 键盘按钮有26个英文字母、空格、逗号、句号、退格键、回车键组成
+            # 功能：1.选取字母显示在文本框中；2.可以拖动虚拟键盘以调整其位置
+            # print("SHAPE: ", im0.shape)
+            kb_h, kb_w = int(height * 0.6), int(width * 0.6)
+            if self.kb_pos[0] == 0 and self.kb_pos[1] == 0:
+                self.kb_pos = np.array([int(height * 0.3), int(width / 2 - kb_w / 2)])
+            b_w = int(kb_w / 11)
+            b_h = int(kb_h * 0.7 / 3)
+
+            for i, o in enumerate(order):
+                if o[2] == 10:
+                    # 更新横纵坐标的位置改变量
+                    if self.pose_last[i] != 10:
+                        self.last_pos = np.array([[-1, -1, -1], [-1, -1, -1]])
+                    if self.last_pos[i][0] != -1 and self.last_pos[i][1] != -1:
+                        self.delta_x = o[0] - self.last_pos[i][0]
+                        self.delta_y = o[1] - self.last_pos[i][1]
+                    self.last_pos[i] = o
+                    # 更新键盘坐标
+                    self.kb_pos[0] += self.delta_x
+                    self.kb_pos[1] += self.delta_y
+                    self.kb_pos[0] = min(self.kb_pos[0], width - kb_w)
+                    self.kb_pos[0] = max(self.kb_pos[0], 0)
+                    self.kb_pos[1] = min(self.kb_pos[1], height - kb_h)
+                    self.kb_pos[1] = max(self.kb_pos[1], 0)
+                    self.buttonUpdate = True
+
+            # 更新键盘按键坐标
+            if self.buttonUpdate:
+                self.buttonList.clear()
+                for j in range(len(keys)):
+                    for x, key in enumerate(keys[j]):
+                        # 循环创建buttonList对象列表
+                        self.buttonList.append(Button((self.kb_pos[0] + x * b_w + 5, self.kb_pos[1] + int(kb_h * 0.3) + j * b_h), key,(b_w, b_h)))
+                self.buttonUpdate = False
+
+            # 绘制半透明背景以及键盘并判断是否悬停在某个按键上
+            zeros = np.zeros(im0.shape, dtype=np.uint8)
+            zeros_mask = cv2.rectangle(zeros, (int(self.kb_pos[0]), int(self.kb_pos[1])), (int(self.kb_pos[0] + kb_w), int(self.kb_pos[1] + kb_h)),
+                                       color=(255, 255, 255), thickness=-1)  # thickness=-1 表示矩形框内颜色填充
+            flag = 1
+            for button in self.buttonList:
+                x, y = button.pos
+                w, h = button.size
+                # print("ORDER: ", order)
+                # print("BUTTON: ", button.pos)
+                for i, o in enumerate(order):
+                    if if_contain_button(button, o[0], o[1]):
+                        cv2.rectangle(zeros_mask, button.pos, (x + w, y + h), (15, 25, 30), cv2.FILLED)
+                        cv2.putText(zeros_mask, button.text, (x + 10, y + 40), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 2)
+                        if o[2] == 3 and self.pose_last[i] != o[2]:
+                            if button.text == 'blk':
+                                self.kb_text += ' '
+                            elif button.text == 'del':
+                                self.kb_text = self.kb_text[:-1]
+                            elif button.text == 'ent':
+                                self.kb_text = ""
+                            else:
+                                self.kb_text += button.text
+                        break
+                    else:
+                        if flag == 1:
+                            cv2.rectangle(zeros_mask, button.pos, (x + w, y + h), (0, 150, 255), cv2.FILLED)
+                        else:
+                            cv2.rectangle(zeros_mask, button.pos, (x + w, y + h), (100, 190, 255), cv2.FILLED)
+                        cv2.putText(zeros_mask, button.text, (x + 10, y + 40), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0), 2)
+                flag ^= 1
+
+            self.pose_last[0] = order[0][2]
+            self.pose_last[1] = order[1][2]
+            cv2.putText(zeros_mask, self.kb_text, (self.kb_pos[0], self.kb_pos[1] + int(kb_h * 0.3) - 20), cv2.FONT_HERSHEY_PLAIN, 4, (0, 0, 0), 2)
+            cv2.line(zeros_mask, (self.kb_pos[0] + 5, int(self.kb_pos[1] + kb_h * 0.3) - 10),
+                     (self.kb_pos[0] + kb_w - 5, int(self.kb_pos[1] + kb_h * 0.3) - 10),
+                     (0, 0, 0), thickness=2, lineType=cv2.LINE_AA)
+            im0 = cv2.addWeighted(im0, 1, zeros_mask, 0.6, 0)
 
         # 若在菜单模式下，绘制相关按钮以及光标，并判断是否命中按钮
         if self.menu:
@@ -266,26 +366,36 @@ class Interactor:
             im0 = cv2.addWeighted(im0, 1, zeros_mask, 0.6, 0)
 
             if self.app_start == 0:  # 没有开启应用
-                c1_x, c1_y = int(width / 3), int(height / 5) * 2  # 关闭菜单
-                c2_x, c2_y = int(width / 3) * 2, int(height / 5) * 2  # 启动应用1
+                c1_x, c1_y = int(width / 4), int(height / 5) * 2  # 关闭菜单
+                c2_x, c2_y = int(width / 4) * 2, int(height / 5) * 2  # 启动应用1
+                c3_x, c3_y = int(width / 4) * 3, int(height / 5) * 2  # 启动应用2
                 c_radius = 50
 
                 cv2.circle(im0, (c1_x, c1_y), c_radius, (0, 204, 0), -1)
                 cv2.putText(im0, 'back', (c1_x - 30, c1_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
                 cv2.circle(im0, (c2_x, c2_y), c_radius, (0, 204, 0), -1)
                 cv2.putText(im0, 'detect', (c2_x - 30, c2_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+                cv2.circle(im0, (c3_x, c3_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'keyboard', (c3_x - 30, c3_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
 
                 cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (153, 0, 204), -1)
                 cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (102, 0, 255), 2)
 
-                # 关闭菜单
-                if if_contain(c1_x, c1_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
-                    self.close_menu()
+                # print("POSE: ", self.pose)
+                if self.pose[0] not in [1, 2, 3] and self.pose[1] not in [1, 2, 3]:
+                    # 关闭菜单
+                    if if_contain_circle(c1_x, c1_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.close_menu()
 
-                # 打开应用1
-                if if_contain(c2_x, c2_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
-                    self.app_start = 1
-                    self.close_menu()
+                    # 打开应用1
+                    if if_contain_circle(c2_x, c2_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.app_start = 1
+                        self.close_menu()
+
+                    # 打开应用2
+                    if if_contain_circle(c3_x, c3_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.app_start = 2
+                        self.close_menu()
 
             elif self.app_start == 1:  # 打开了应用1
                 c1_x, c1_y = int(width / 4), int(height / 5) * 2  # 关闭菜单
@@ -303,25 +413,53 @@ class Interactor:
                 cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (153, 0, 204), -1)
                 cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (102, 0, 255), 2)
 
-                # 关闭菜单
-                if if_contain(c1_x, c1_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
-                    self.close_menu()
+                if self.pose[0] not in [1, 2, 3] and self.pose[1] not in [1, 2, 3]:
+                    # 关闭菜单
+                    if if_contain_circle(c1_x, c1_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.close_menu()
 
-                # 关闭应用1
-                elif if_contain(c2_x, c2_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
-                    self.app_start = 0
-                    self.app_dict["result"] = None
-                    self.app_dict["left_top"] = self.app_dict["right_bottom"] = None
-                    self.close_menu()
+                    # 关闭应用1
+                    elif if_contain_circle(c2_x, c2_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.app_start = 0
+                        self.app_dict["result"] = None
+                        self.app_dict["left_top"] = self.app_dict["right_bottom"] = None
+                        self.close_menu()
 
-                # 清空以新建新的分类任务
-                elif if_contain(c3_x, c3_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
-                    self.app_dict["result"] = None
-                    self.app_dict["left_top"] = self.app_dict["right_bottom"] = None
-                    self.close_menu()
+                    # 清空以新建新的分类任务
+                    elif if_contain_circle(c3_x, c3_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.app_dict["result"] = None
+                        self.app_dict["left_top"] = self.app_dict["right_bottom"] = None
+                        self.close_menu()
+
+            elif self.app_start == 2:  # 打开了应用2
+                c1_x, c1_y = int(width / 3), int(height / 5) * 2  # 关闭菜单
+                c2_x, c2_y = int(width / 3) * 2, int(height / 5) * 2  # 关闭应用2
+                c_radius = 50
+
+                cv2.circle(im0, (c1_x, c1_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'back', (c1_x - 30, c1_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+                cv2.circle(im0, (c2_x, c2_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'close', (c2_x - 30, c2_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+
+                cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (153, 0, 204), -1)
+                cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (102, 0, 255), 2)
+
+                if self.pose[0] not in [1, 2, 3] and self.pose[1] not in [1, 2, 3]:
+                    # 关闭菜单
+                    if if_contain_circle(c1_x, c1_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.close_menu()
+
+                    # 关闭应用2
+                    elif if_contain_circle(c2_x, c2_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.app_start = 0
+                        self.buttonUpdate = True
+                        self.buttonList.clear()
+                        self.kb_text = ""
+                        self.kb_pos = np.array([0, 0])
+                        self.last_pos = np.array([[-1, -1, -1], [-1, -1, -1]])
+                        self.close_menu()
 
         return im0
-
 
     def __clear_cache(self, i):
         self.track[i].clear()
@@ -342,7 +480,7 @@ class Interactor:
             self.share_act.append(action_list[self.direction_list[i]])
             # if self.direction_list[i] == "64":  # 启动应用
             #     self.app_start = True
-                # print("\n\n启动应用\n\n")
+            # print("\n\n启动应用\n\n")
             # if self.direction_list[i] == "8":  # 关闭应用
             #     self.app_start = False
             #     # print("\n\n关闭应用\n\n")

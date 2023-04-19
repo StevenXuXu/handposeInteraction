@@ -1,5 +1,6 @@
 # -- coding: utf-8 --
 
+
 # 计算距离
 def compute_distance(x1, y1, x2, y2):
     return (x1 - x2) ** 2 + (y1 - y2) ** 2
@@ -26,5 +27,15 @@ def compute_direction(x1, y1, x2, y2):
 
 
 # 判断是否在圆内
-def if_contain(cx, cy, r, x, y):
+def if_contain_circle(cx, cy, r, x, y):
     return (cx - x) ** 2 + (cy - y) ** 2 <= r ** 2
+
+
+# 判断是否在矩形内
+def if_contain_rectangle(rx, ry, w, h, x, y):
+    return rx <= x <= rx + w and ry <= y <= ry + h
+
+
+# 判断是否在按键内
+def if_contain_button(button, x, y):
+    return button.pos[0] <= x <= button.pos[0] + button.size[0] and button.pos[1] <= y <= button.pos[1] + button.size[1]

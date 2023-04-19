@@ -64,18 +64,22 @@ import numpy as np
 # res += 'haha'
 # print(res)
 
-def solve(im0):
-    width = im0.shape[1]
-    height = im0.shape[0]
+# def solve(im0):
+#     width = im0.shape[1]
+#     height = im0.shape[0]
+#
+#     zeros = np.zeros(im0.shape, dtype=np.uint8)
+#     zeros_mask = cv2.rectangle(zeros, (0, 0), (width, height),
+#                                color=(255, 255, 0), thickness=-1)  # thickness=-1 表示矩形框内颜色填充
+#     cv2.add(im0, zeros_mask, dst=im0)
+#
+#
+# im0 = cv2.imread('inference/input/pose_setting/1/1.jpg')
+#
+# cv2.imshow('img', im0)
+# if cv2.waitKey(10000) == ord('q'):  # 按q退出
+#     cv2.destroyAllWindows()
 
-    zeros = np.zeros(im0.shape, dtype=np.uint8)
-    zeros_mask = cv2.rectangle(zeros, (0, 0), (width, height),
-                               color=(255, 255, 0), thickness=-1)  # thickness=-1 表示矩形框内颜色填充
-    cv2.add(im0, zeros_mask, dst=im0)
-
-
-im0 = cv2.imread('inference/input/pose_setting/1/1.jpg')
-
-cv2.imshow('img', im0)
-if cv2.waitKey(10000) == ord('q'):  # 按q退出
-    cv2.destroyAllWindows()
+a = 1;
+a ^= 1
+print(a)

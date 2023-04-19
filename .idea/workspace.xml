@@ -4,7 +4,6 @@
     <list default="true" id="be1db88b-5c15-4b95-9b46-7dbf02532c71" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/inference.py" beforeDir="false" afterPath="$PROJECT_DIR$/inference.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/interaction/detect/class_indices.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/interaction/interaction.py" beforeDir="false" afterPath="$PROJECT_DIR$/interaction/interaction.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/interaction/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/interaction/utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/test.py" afterDir="false" />
@@ -138,5 +137,17 @@
       <updated>1675403385117</updated>
     </task>
     <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+    <option name="oldMeFiltersMigrated" value="true" />
   </component>
 </project>
