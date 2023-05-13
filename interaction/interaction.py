@@ -74,7 +74,7 @@ class Interactor:
         self.pose_end = np.array([0, 0])  # 标记语音输出
         self.direction_intent = np.array([0, 0])  # 移动方向预测
         self.detected = np.array([0, 0])  # 框选图片是否检测过
-        self.app_start = 3  # 当前在哪个应用
+        self.app_start = 0  # 当前在哪个应用
         self.menu = 0  # 是否在菜单模式
         self.menu_mouse = [320, 400]  # 菜单鼠标坐标
         self.delta_x = 0  # 坐标的x改变量
