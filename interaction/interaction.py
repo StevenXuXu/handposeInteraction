@@ -4,9 +4,9 @@ import _thread
 import cv2
 import numpy as np
 
-from interaction.audio_thread import play_sounds
+from interaction.audio_thread import play_piano
 from interaction.detect.detect import detect
-from interaction.utils import compute_distance, compute_direction, if_contain_circle, if_contain_button
+from interaction.utils import compute_distance, compute_direction, if_contain_circle, if_contain_button, press_white_key
 
 # 方向列表:上8下2左4右6
 action_list = {
@@ -25,12 +25,27 @@ keys = [['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'del'],
         ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'blk', 'ent'],
         ['Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '?', '!']]
 
-# 定义按钮
-class Button:
+
+# 钢琴音调
+tunes = ['do', 're', 'mi', 'fa', 'so', 'la', 'si', 'do+', 're+', 'fa+', 'so+', 'la+']
+
+
+# 定义键盘按钮
+class KbdButton:
     def __init__(self, pos, text, size):
         self.pos = pos
         self.text = text
         self.size = size
+
+
+# 定义钢琴按钮
+class PianoButton:
+    def __init__(self, pos, color, size, tune=None):
+        self.pos = pos
+        self.color = color
+        self.size = size
+        self.tune = tune
+
 
 class Interactor:
     """
@@ -59,6 +74,7 @@ class Interactor:
         self.pose_end = np.array([0, 0])  # 标记语音输出
         self.direction_intent = np.array([0, 0])  # 移动方向预测
         self.detected = np.array([0, 0])  # 框选图片是否检测过
+        self.app_start = 3  # 当前在哪个应用
         self.menu = 0  # 是否在菜单模式
         self.menu_mouse = [320, 400]  # 菜单鼠标坐标
         self.delta_x = 0  # 坐标的x改变量
@@ -68,12 +84,16 @@ class Interactor:
         self.kb_text = ""  # 输入的文本
         self.kb_pos = np.array([0, 0])  # 键盘初始位置
         self.last_pos = np.array([[-1, -1, -1], [-1, -1, -1]])  # 记录上一帧的食指位置
+        self.piano_pos = np.array([0, 0])  # 钢琴初始位置
+        self.pianoList = []  # 钢琴按键表
+        self.pianoUpdate = True  # 钢琴按键是否需要更新
 
         # todo 音效模块
-        self.share_act = []
-        # _thread.start_new_thread(play_sounds, (self.share_act,))  # 启动声音提示线程
+        self.share_act = []  # 音效
+        self.piano_data = []  # 钢琴声音
+        _thread.start_new_thread(play_piano, (self.piano_data,))  # 启动声音提示线程
 
-        # 应用模块
+        # 图像内容识别模块
         self.app_dict = {
             "mouse": None,
             "img": None,
@@ -81,7 +101,6 @@ class Interactor:
             "right_bottom": None,
             "result": None,
         }  # 共享信息
-        self.app_start = 0
         # 启动应用模块线程，传入app_dict，线程共享该变量
         _thread.start_new_thread(detect, (self.app_dict,))  # 启动图像识别线程
 
@@ -214,7 +233,8 @@ class Interactor:
                     self.detected[i] = True
 
             else:
-                print("wrong in interaction")
+                # print("wrong in interaction")
+                pass
 
             # 绘制移动轨迹
             if len(self.track[i]):  # 判断是否有记录
@@ -275,7 +295,7 @@ class Interactor:
 
         # 在应用2下
         if self.app_start == 2:
-            # todo 虚拟键盘
+            # todo 虚拟键盘 done
             # 键盘按钮有26个英文字母、空格、逗号、句号、退格键、回车键组成
             # 功能：1.选取字母显示在文本框中；2.可以拖动虚拟键盘以调整其位置
             # print("SHAPE: ", im0.shape)
@@ -286,9 +306,9 @@ class Interactor:
             b_h = int(kb_h * 0.7 / 3)
 
             for i, o in enumerate(order):
-                if o[2] == 10:
+                if o[2] in [10, 11]:
                     # 更新横纵坐标的位置改变量
-                    if self.pose_last[i] != 10:
+                    if self.pose_last[i] not in [10, 11]:
                         self.last_pos = np.array([[-1, -1, -1], [-1, -1, -1]])
                     if self.last_pos[i][0] != -1 and self.last_pos[i][1] != -1:
                         self.delta_x = o[0] - self.last_pos[i][0]
@@ -309,12 +329,15 @@ class Interactor:
                 for j in range(len(keys)):
                     for x, key in enumerate(keys[j]):
                         # 循环创建buttonList对象列表
-                        self.buttonList.append(Button((self.kb_pos[0] + x * b_w + 5, self.kb_pos[1] + int(kb_h * 0.3) + j * b_h), key,(b_w, b_h)))
+                        self.buttonList.append(
+                            KbdButton((self.kb_pos[0] + x * b_w + 5, self.kb_pos[1] + int(kb_h * 0.3) + j * b_h), key,
+                                      (b_w, b_h)))
                 self.buttonUpdate = False
 
             # 绘制半透明背景以及键盘并判断是否悬停在某个按键上
             zeros = np.zeros(im0.shape, dtype=np.uint8)
-            zeros_mask = cv2.rectangle(zeros, (int(self.kb_pos[0]), int(self.kb_pos[1])), (int(self.kb_pos[0] + kb_w), int(self.kb_pos[1] + kb_h)),
+            zeros_mask = cv2.rectangle(zeros, (int(self.kb_pos[0]), int(self.kb_pos[1])),
+                                       (int(self.kb_pos[0] + kb_w), int(self.kb_pos[1] + kb_h)),
                                        color=(255, 255, 255), thickness=-1)  # thickness=-1 表示矩形框内颜色填充
             flag = 1
             for button in self.buttonList:
@@ -325,7 +348,8 @@ class Interactor:
                 for i, o in enumerate(order):
                     if if_contain_button(button, o[0], o[1]):
                         cv2.rectangle(zeros_mask, button.pos, (x + w, y + h), (15, 25, 30), cv2.FILLED)
-                        cv2.putText(zeros_mask, button.text, (x + 10, y + 40), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 2)
+                        cv2.putText(zeros_mask, button.text, (x + 10, y + 40), cv2.FONT_HERSHEY_PLAIN, 1,
+                                    (255, 255, 255), 2)
                         if o[2] == 3 and self.pose_last[i] != o[2]:
                             if button.text == 'blk':
                                 self.kb_text += ' '
@@ -346,10 +370,79 @@ class Interactor:
 
             self.pose_last[0] = order[0][2]
             self.pose_last[1] = order[1][2]
-            cv2.putText(zeros_mask, self.kb_text, (self.kb_pos[0], self.kb_pos[1] + int(kb_h * 0.3) - 20), cv2.FONT_HERSHEY_PLAIN, 4, (0, 0, 0), 2)
+            cv2.putText(zeros_mask, self.kb_text, (self.kb_pos[0], self.kb_pos[1] + int(kb_h * 0.3) - 20),
+                        cv2.FONT_HERSHEY_PLAIN, 4, (0, 0, 0), 2)
             cv2.line(zeros_mask, (self.kb_pos[0] + 5, int(self.kb_pos[1] + kb_h * 0.3) - 10),
                      (self.kb_pos[0] + kb_w - 5, int(self.kb_pos[1] + kb_h * 0.3) - 10),
                      (0, 0, 0), thickness=2, lineType=cv2.LINE_AA)
+            im0 = cv2.addWeighted(im0, 1, zeros_mask, 0.6, 0)
+
+        if self.app_start == 3:
+            # todo 虚拟钢琴应用
+            piano_h, piano_w = int(height * 0.6), int(width * 0.6)
+            if self.piano_pos[0] == 0 and self.piano_pos[1] == 0:
+                self.piano_pos = np.array([int(height * 0.3), int(width / 2 - piano_w / 2)])
+            b_white_w = int(piano_w / 7)
+            b_white_h = piano_h
+            b_black_w = int(b_white_w * 0.7)
+            b_black_h = int(b_white_h * 0.6)
+
+            for i, o in enumerate(order):
+                if o[2] in [10, 11]:
+                    # 更新横纵坐标的位置改变量
+                    if self.pose_last[i] not in [10, 11]:
+                        self.last_pos = np.array([[-1, -1, -1], [-1, -1, -1]])
+                    if self.last_pos[i][0] != -1 and self.last_pos[i][1] != -1:
+                        self.delta_x = o[0] - self.last_pos[i][0]
+                        self.delta_y = o[1] - self.last_pos[i][1]
+                    self.last_pos[i] = o
+                    # 更新钢琴坐标
+                    self.piano_pos[0] += self.delta_x
+                    self.piano_pos[1] += self.delta_y
+                    self.piano_pos[0] = min(self.piano_pos[0], width - piano_w)
+                    self.piano_pos[0] = max(self.piano_pos[0], 0)
+                    self.piano_pos[1] = min(self.piano_pos[1], height - piano_h)
+                    self.piano_pos[1] = max(self.piano_pos[1], 0)
+                    self.pianoUpdate = True
+
+            # 更新钢琴按键坐标
+            if self.pianoUpdate:
+                self.pianoList.clear()
+                for i in range(7):
+                    self.pianoList.append(PianoButton((self.piano_pos[0] + i * b_white_w, self.piano_pos[1]),
+                                                      'white',
+                                                      (b_white_w, b_white_h)))
+                for i in range(1, 7):
+                    if i == 3:
+                        continue
+                    self.pianoList.append(PianoButton((self.pianoList[i].pos[0] - int(b_black_w * 0.5), self.piano_pos[1]),
+                                                      'black',
+                                                      (b_black_w, b_black_h)))
+                for i in range(12):
+                    self.pianoList[i].tune = tunes[i]
+                self.pianoUpdate = False
+
+            zeros_mask = np.zeros(im0.shape, dtype=np.uint8)
+
+            for button in self.pianoList:
+                x, y = button.pos
+                w, h = button.size
+                # print("ORDER: ", order)
+                # print("BUTTON: ", button.pos)
+                for i, o in enumerate(order):
+                    if button.color == 'black' and if_contain_button(button, o[0], o[1]) or button.color == 'white' and press_white_key(button, o[0], o[1], b_black_h):
+                        cv2.rectangle(zeros_mask, button.pos, (x + w, y + h), (15, 25, 30), cv2.FILLED)
+                        if o[2] == 3 and self.pose_last[i] != o[2]:
+                            self.piano_data.append(button.tune)
+                        break
+                    else:
+                        if button.color == 'black':
+                            cv2.rectangle(zeros_mask, button.pos, (x + w, y + h), (50, 50, 50), cv2.FILLED)
+                        else:
+                            cv2.rectangle(zeros_mask, button.pos, (x + w, y + h), (180, 180, 180), cv2.FILLED)
+
+            self.pose_last[0] = order[0][2]
+            self.pose_last[1] = order[1][2]
             im0 = cv2.addWeighted(im0, 1, zeros_mask, 0.6, 0)
 
         # 若在菜单模式下，绘制相关按钮以及光标，并判断是否命中按钮
@@ -366,17 +459,20 @@ class Interactor:
             im0 = cv2.addWeighted(im0, 1, zeros_mask, 0.6, 0)
 
             if self.app_start == 0:  # 没有开启应用
-                c1_x, c1_y = int(width / 4), int(height / 5) * 2  # 关闭菜单
-                c2_x, c2_y = int(width / 4) * 2, int(height / 5) * 2  # 启动应用1
-                c3_x, c3_y = int(width / 4) * 3, int(height / 5) * 2  # 启动应用2
+                c1_x, c1_y = int(width / 5), int(height / 5) * 2  # 关闭菜单
+                c2_x, c2_y = int(width / 5) * 2, int(height / 5) * 2  # 启动应用1
+                c3_x, c3_y = int(width / 5) * 3, int(height / 5) * 2  # 启动应用2
+                c4_x, c4_y = int(width / 5) * 4, int(height / 5) * 2  # 启动应用3
                 c_radius = 50
 
                 cv2.circle(im0, (c1_x, c1_y), c_radius, (0, 204, 0), -1)
                 cv2.putText(im0, 'back', (c1_x - 30, c1_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
                 cv2.circle(im0, (c2_x, c2_y), c_radius, (0, 204, 0), -1)
-                cv2.putText(im0, 'detect', (c2_x - 30, c2_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+                cv2.putText(im0, 'detect', (c2_x - 33, c2_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
                 cv2.circle(im0, (c3_x, c3_y), c_radius, (0, 204, 0), -1)
-                cv2.putText(im0, 'keyboard', (c3_x - 30, c3_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+                cv2.putText(im0, 'kbd', (c3_x - 20, c3_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+                cv2.circle(im0, (c4_x, c4_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'piano', (c4_x - 32, c4_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
 
                 cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (153, 0, 204), -1)
                 cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (102, 0, 255), 2)
@@ -395,6 +491,11 @@ class Interactor:
                     # 打开应用2
                     if if_contain_circle(c3_x, c3_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
                         self.app_start = 2
+                        self.close_menu()
+
+                    # 打开应用3
+                    if if_contain_circle(c4_x, c4_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.app_start = 3
                         self.close_menu()
 
             elif self.app_start == 1:  # 打开了应用1
@@ -456,6 +557,33 @@ class Interactor:
                         self.buttonList.clear()
                         self.kb_text = ""
                         self.kb_pos = np.array([0, 0])
+                        self.last_pos = np.array([[-1, -1, -1], [-1, -1, -1]])
+                        self.close_menu()
+
+            elif self.app_start == 3:  # 打开了应用3
+                c1_x, c1_y = int(width / 3), int(height / 5) * 2  # 关闭菜单
+                c2_x, c2_y = int(width / 3) * 2, int(height / 5) * 2  # 关闭应用3
+                c_radius = 50
+
+                cv2.circle(im0, (c1_x, c1_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'back', (c1_x - 30, c1_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+                cv2.circle(im0, (c2_x, c2_y), c_radius, (0, 204, 0), -1)
+                cv2.putText(im0, 'close', (c2_x - 30, c2_y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 0), 2)
+
+                cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (153, 0, 204), -1)
+                cv2.circle(im0, (self.menu_mouse[0], self.menu_mouse[1]), 5, (102, 0, 255), 2)
+
+                if self.pose[0] not in [1, 2, 3] and self.pose[1] not in [1, 2, 3]:
+                    # 关闭菜单
+                    if if_contain_circle(c1_x, c1_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.close_menu()
+
+                    # 关闭应用3
+                    elif if_contain_circle(c2_x, c2_y, c_radius, self.menu_mouse[0], self.menu_mouse[1]):
+                        self.app_start = 0
+                        self.pianoUpdate = True
+                        self.pianoList.clear()
+                        self.piano_pos = np.array([0, 0])
                         self.last_pos = np.array([[-1, -1, -1], [-1, -1, -1]])
                         self.close_menu()
 

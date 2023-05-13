@@ -30,14 +30,25 @@ def pose_to_angles(key_point):
     # a5 = vectors_to_angle(key_point[0], key_point[17], key_point[18], key_point[20])
     # a6 = vectors_to_angle(key_point[0], key_point[4], key_point[0], key_point[8])  # 大拇指与食指
     # return np.array([a1, a2, a3, a4, a5, a6], dtype=np.float32)
-    a1 = vectors_to_angle(key_point[0], key_point[1], key_point[3], key_point[4])
+    # 向量选取策略1
+    a1 = vectors_to_angle(key_point[0], key_point[1], key_point[2], key_point[4])
     a2 = vectors_to_angle(key_point[0], key_point[5], key_point[6], key_point[8])
     a3 = vectors_to_angle(key_point[0], key_point[9], key_point[10], key_point[12])
     a4 = vectors_to_angle(key_point[0], key_point[13], key_point[14], key_point[16])
     a5 = vectors_to_angle(key_point[0], key_point[17], key_point[18], key_point[20])
-    a6 = vectors_to_angle(key_point[0], key_point[4], key_point[0], key_point[8])
-    a7 = vectors_to_angle(key_point[1], key_point[2], key_point[2], key_point[3])
-    a8 = vectors_to_angle(key_point[5], key_point[6], key_point[6], key_point[7])
+    a6 = vectors_to_angle(key_point[1], key_point[2], key_point[2], key_point[3])
+    a7 = vectors_to_angle(key_point[5], key_point[6], key_point[6], key_point[7])
+    a8 = vectors_to_angle(key_point[9], key_point[10], key_point[10], key_point[11])
+    # 向量选取策略2
+    # a1 = vectors_to_angle(key_point[0], key_point[1], key_point[3], key_point[4])
+    # a2 = vectors_to_angle(key_point[0], key_point[5], key_point[6], key_point[8])
+    # a3 = vectors_to_angle(key_point[0], key_point[9], key_point[10], key_point[12])
+    # a4 = vectors_to_angle(key_point[0], key_point[13], key_point[14], key_point[16])
+    # a5 = vectors_to_angle(key_point[0], key_point[17], key_point[18], key_point[20])
+    # a6 = vectors_to_angle(key_point[0], key_point[4], key_point[0], key_point[8])
+    # a7 = vectors_to_angle(key_point[1], key_point[2], key_point[2], key_point[3])
+    # a8 = vectors_to_angle(key_point[5], key_point[6], key_point[6], key_point[7])
+
     # todo 增加手势3和5的区分度
     return np.array([a1, a2, a3, a4, a5, a6, a7, a8], dtype=np.float32)
 

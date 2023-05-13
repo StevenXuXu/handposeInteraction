@@ -205,7 +205,7 @@ def parse_argument():
     parser = argparse.ArgumentParser()
     # file/folder, 0-webcam。不支持图片格式              inference/input/test_video2.mp4
     # parser.add_argument('--source', type=str, default='inference/input/Snipaste_2023-02-27_15-36-08.png', help='source')  # 输入视频文件
-    parser.add_argument('--source', type=str, default='1', help='source')  # 输入摄像头画面。0：笔记本自带摄像头；1：usb摄像头
+    parser.add_argument('--source', type=str, default='0', help='source')  # 输入摄像头画面。0：笔记本自带摄像头；1：usb摄像头
     # 输出文件夹
     parser.add_argument('--output', type=str, default='inference/output', help='output folder')
     # 输出视频格式

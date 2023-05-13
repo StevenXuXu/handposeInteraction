@@ -39,3 +39,8 @@ def if_contain_rectangle(rx, ry, w, h, x, y):
 # 判断是否在按键内
 def if_contain_button(button, x, y):
     return button.pos[0] <= x <= button.pos[0] + button.size[0] and button.pos[1] <= y <= button.pos[1] + button.size[1]
+
+
+# 判断是否按白键
+def press_white_key(button, x, y, black_h):
+    return button.pos[0] <= x <= button.pos[0] + button.size[0] and button.pos[1] + black_h <= y <= button.pos[1] + button.size[1]
